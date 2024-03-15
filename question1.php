@@ -10,12 +10,35 @@ $fileLocation = null;
 
 $writeToDatabase = false;
 
+$usersOriginal = null;
+
 setParameters();
+
 echo("Username: $username");
 echo("Password: $password");
 echo("mysqlHost: $mysqlHost");
 echo("mysqlTable: $mysqlTableName");
 echo("File: $fileLocation");
+
+$usersOriginal = getCsv($fileLocation);
+print_r($usersOriginal);
+
+function getCsv($file) {
+    $users = null;
+    if(file_exists($file)) {
+        $readCsv = fopen($file, "r");
+        while (($row = fgetcsv($readCsv)) !== false) {
+            $users[] = $row;
+        }
+        fclose($readCsv);
+
+        array_shift($users);
+    } else {
+        echo("Please check the file is exist. $file");
+    }
+    return $users;
+
+}
 
 function setParameters(): void
 {
