@@ -6,10 +6,11 @@ $username = null;
 $password = null;
 $mysqlHost = null;
 $dbname = "codeInterview";
-$mysqlTableName = null;
+$mysqlTableName = "users";
 $fileLocation = null;
 
-$writeToDatabase = false;    //Default will not allow
+$writeToDatabase = true;    //Default will not allow
+$allowInsertData = true;   //The flag of inert data to DB
 
 $usersOriginal = null;
 $validUsers = null;
@@ -26,26 +27,38 @@ $usersOriginal = getCsv($fileLocation); //Read all user from CSV.
 
 $validUsers = formatData($usersOriginal);   //Filter all invalid user and show.
 
-
+echo("All valid users information:\n");
+foreach ($validUsers as $user) {    //Show all valid users list.
+    echo("Email: $user[0] Name: $user[1] Surname: $user[2]\n");
+}
 
 if($writeToDatabase) {
     include 'includes/mysql_connect.inc';   //For mysql connect,
 
-    if(is_null($mysqlTableName)) {
-        echo("Use default table name: users");
-        $mysqlTableName = "users";
-    }
-
-    if(isTableExist()) {
-
-    } else {    //Creat the table if not exist.
+    if(!isTableExist()) {   //Creat the table if not exist.
+        echo("Creating the Table...\n");
         include 'includes/mysql_connect.inc';   //For mysql connect,
         $sql = "CREATE TABLE $mysqlTableName (email varchar(255) NOT NULL, name varchar(255), surname varchar(255), PRIMARY KEY (email))";
         mysqli_query($db, $sql);
+    } else {
+        echo("Table already in the DB\n");
+    }
+
+    if($allowInsertData) {  //Start insert users to DB
+        include 'includes/mysql_connect.inc';   //For mysql connect,
+
+        foreach ($validUsers as $user) {    //Show all valid users list.
+            echo("Start insert user $user[0]\n");
+            $sqlInsertData = "INSERT INTO $mysqlTableName (email, name, surname) VALUES (?, ?, ?)"; //Prevent symbol '
+            $stmt = $db->prepare($sqlInsertData);
+            $stmt->bind_param("sss", $user[0], $user[1], $user[2]);
+            $stmt->execute();
+        }
+        echo("Done\n");
     }
 
 } else {
-    echo "This is Dry_run. Will not write to DB.";
+    echo "This is Dry_run. Will not write to DB.\n";
 }
 
 function formatData($originalUsers): array
@@ -57,7 +70,7 @@ function formatData($originalUsers): array
 
         $name = ucfirst(strtolower($thisuser[0]));
         $surname = ucfirst(strtolower($thisuser[1]));
-        $email = $thisuser[2];
+        $email = strtolower($thisuser[2]);
 
         if (!preg_match("/^[a-zA-Z-' ]*$/",$name)) {
             $validFlag = false;
@@ -146,8 +159,10 @@ function setParameters(): void
                     break;
 
                 case "--create_table":
-                    $mysqlTableName = $filteredArgument[$index + 1];
+                    //$mysqlTableName = $filteredArgument[$index + 1];
+                    $mysqlTableName = "users";  //Force use users
                     $writeToDatabase = true;
+                    $allowInsertData = false;   //Only creat table not insert data.
                     break;
 
                 case "--dry_run":
