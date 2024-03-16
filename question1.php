@@ -9,9 +9,10 @@ $dbname = "codeInterview";
 $mysqlTableName = null;
 $fileLocation = null;
 
-$writeToDatabase = true;    //Default will allow
+$writeToDatabase = false;    //Default will not allow
 
 $usersOriginal = null;
+$validUsers = null;
 
 setParameters();
 
@@ -21,8 +22,11 @@ echo("mysqlHost: $mysqlHost");
 echo("mysqlTable: $mysqlTableName");
 echo("File: $fileLocation");*/
 
-$usersOriginal = getCsv($fileLocation);
-print_r($usersOriginal);
+$usersOriginal = getCsv($fileLocation); //Read all user from CSV.
+
+$validUsers = formatData($usersOriginal);   //Filter all invalid user and show.
+
+
 
 if($writeToDatabase) {
     include 'includes/mysql_connect.inc';   //For mysql connect,
@@ -42,6 +46,40 @@ if($writeToDatabase) {
 
 } else {
     echo "This is Dry_run. Will not write to DB.";
+}
+
+function formatData($originalUsers): array
+{
+    $validUsers = array();
+
+    foreach ($originalUsers as $thisuser) {
+        $validFlag = true;
+
+        $name = ucfirst(strtolower($thisuser[0]));
+        $surname = ucfirst(strtolower($thisuser[1]));
+        $email = $thisuser[2];
+
+        if (!preg_match("/^[a-zA-Z-' ]*$/",$name)) {
+            $validFlag = false;
+            echo ("Invalid name format Founded: $name\n");
+        }
+
+        if (!preg_match("/^[a-zA-Z-' ]*$/",$surname)) {
+            $validFlag = false;
+            echo ("Invalid surname format Founded: $surname\n");
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $validFlag = false;
+            echo("Invalid email format Founded: $email\n");
+        }
+        $cacheUser = [$email, $name, $surname];
+        if ($validFlag) {
+            array_push($validUsers, $cacheUser);
+        }
+    }
+
+    return $validUsers;
 }
 
 function isTableExist(): bool
