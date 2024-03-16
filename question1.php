@@ -110,6 +110,14 @@ function checkDuplicateUser($userEmail): bool
     return $userIsExist;
 }
 
+function formatName($input): String //Remove unusual !@#...
+{
+    $input = str_replace(' ', '-', ucfirst(strtolower($input)));
+
+    return preg_replace('/[^A-Za-z0-9\-]/', '', $input);
+}
+
+
 function formatData($originalUsers): array
 {
     $validUsers = array();
@@ -117,18 +125,21 @@ function formatData($originalUsers): array
     foreach ($originalUsers as $thisuser) {
         $validFlag = true;
 
-        $name = ucfirst(strtolower($thisuser[0]));
-        $surname = ucfirst(strtolower($thisuser[1]));
-        $email = strtolower($thisuser[2]);
+        $name = trim(ucfirst(strtolower($thisuser[0])));
+        $surname = trim(ucfirst(strtolower($thisuser[1])));
 
-        if (!preg_match("/^[a-zA-Z-' ]*$/",$name)) {
-            $validFlag = false;
-            echo ("Invalid name format Founded: $name\n");
+        $email = trim(strtolower($thisuser[2]));
+
+        if (!preg_match("/^[a-zA-Z-' ]*$/",$name)) {    //If cannot handle send to force remove symbol
+            $name = formatName($name);
+            //$validFlag = false;
+            //echo ("Invalid name format Founded: $name\n");
         }
 
-        if (!preg_match("/^[a-zA-Z-' ]*$/",$surname)) {
-            $validFlag = false;
-            echo ("Invalid surname format Founded: $surname\n");
+        if (!preg_match("/^[a-zA-Z-' ]*$/",$surname)) { //If cannot handle send to force remove symbol
+            $surname = formatName($surname);
+            //$validFlag = false;
+            //echo ("Invalid surname format Founded: $surname\n");
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -138,6 +149,10 @@ function formatData($originalUsers): array
         $cacheUser = [$email, $name, $surname];
         if ($validFlag) {
             array_push($validUsers, $cacheUser);
+        } else {
+            $errorDataOut = fopen('php://stdout', 'w');
+            fputs($errorDataOut, "Invalid user data: $email | $name | $surname\n");
+            fclose($errorDataOut);
         }
     }
 
