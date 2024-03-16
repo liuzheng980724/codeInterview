@@ -8,4 +8,6 @@ codeInterview
 │   │   │   │   └─── question1.php
 │   │   │   └─── includes
 │   │   │       └───mysql_connect.inc
-└───────────question2.php
+└───────────question2.php OR foobar.php
+
+All others files are rubbish files. 
