@@ -7,32 +7,50 @@ $password = null;
 $mysqlHost = null;
 $dbname = "codeInterview";
 $mysqlTableName = "users";
+$dbParametersFlag = false;
+
+$flagUserNeedInputFile = false;
 $fileLocation = null;
 
-$writeToDatabase = true;    //Default will not allow
-$allowInsertData = true;   //The flag of inert data to DB
+$writeToDatabase = true;    //All process in DB include create table, search
+$allowInsertData = true;   //Only process on insert data
 
 $usersOriginal = null;
 $validUsers = null;
 
 setParameters();
 
-/*echo("Username: $username");
-echo("Password: $password");
-echo("mysqlHost: $mysqlHost");
-echo("mysqlTable: $mysqlTableName");
-echo("File: $fileLocation");*/
+if(file_exists($fileLocation) AND $flagUserNeedInputFile) {
+    $usersOriginal = getCsv($fileLocation); //Read all user from CSV.
+    $validUsers = formatData($usersOriginal);   //Filter all invalid user and show.
 
-$usersOriginal = getCsv($fileLocation); //Read all user from CSV.
-
-$validUsers = formatData($usersOriginal);   //Filter all invalid user and show.
-
-echo("All valid users information:\n");
-foreach ($validUsers as $user) {    //Show all valid users list.
-    echo("Email: $user[0] Name: $user[1] Surname: $user[2]\n");
+    echo("All valid users information:\n");
+    foreach ($validUsers as $user) {    //Show all valid users list.
+        echo("Email: $user[0] Name: $user[1] Surname: $user[2]\n");
+    }
+} else if($flagUserNeedInputFile) { //Do not show msm not need
+    echo("Please check the file is exist. $fileLocation\n");
 }
 
-if($writeToDatabase) {
+if((!is_null($username) OR !is_null($password) OR !is_null($mysqlHost)) AND ($writeToDatabase)) {
+    try {
+        include 'includes/mysql_connect.inc';   //For mysql connect,
+        if ($db->connect_error) { //Check mysql can login
+            echo("Check your DB's username, password, host. \n");
+        } else {
+            $dbParametersFlag = true;
+        }
+    }catch(Exception $e)
+    {
+        echo $e->getMessage();
+        echo "\n";
+    }
+
+} else if($writeToDatabase) {
+    echo("You have to set the parameters of DB username, password, host. \n");
+}
+
+if($writeToDatabase AND $dbParametersFlag) {
     include 'includes/mysql_connect.inc';   //For mysql connect,
 
     if(!isTableExist()) {   //Creat the table if not exist.
@@ -44,27 +62,58 @@ if($writeToDatabase) {
         echo("Table already in the DB\n");
     }
 
-    if($allowInsertData) {  //Start insert users to DB
+    if($allowInsertData AND !is_null($validUsers)) {  //Start insert users to DB
         include 'includes/mysql_connect.inc';   //For mysql connect,
 
         foreach ($validUsers as $user) {    //Show all valid users list.
             echo("Start insert user $user[0]\n");
-            $sqlInsertData = "INSERT INTO $mysqlTableName (email, name, surname) VALUES (?, ?, ?)"; //Prevent symbol '
-            $stmt = $db->prepare($sqlInsertData);
-            $stmt->bind_param("sss", $user[0], $user[1], $user[2]);
-            $stmt->execute();
+
+            if(checkDuplicateUser($user[0])) {  //Check if already have a same email in DB, if not add the user.
+                echo("Error!! The user $user[0] already in the DB.\n");
+            } else {
+                try {
+                    $sqlInsertData = "INSERT INTO $mysqlTableName (email, name, surname) VALUES (?, ?, ?)"; //Prevent symbol '
+                    $stmt = $db->prepare($sqlInsertData);
+                    $stmt->bind_param("sss", $user[0], $user[1], $user[2]);
+                    $stmt->execute();
+                }catch(Exception $e) {
+                    echo $e->getMessage();
+                    echo "\n";
+                }
+            }
+
         }
         echo("Done\n");
     }
 
-} else {
+} else if(!$writeToDatabase) {
     echo "This is Dry_run. Will not write to DB.\n";
+}
+
+function checkDuplicateUser($userEmail): bool
+{
+    global $mysqlTableName, $dbname, $username, $password, $mysqlHost;  //Some parameters needed for mysql connect.;
+    $userIsExist = null;
+    include 'includes/mysql_connect.inc';   //For mysql connect,
+
+    $sql = "select * from $mysqlTableName where email = ?"; //Prevent symbol '
+    $stmt = $db->prepare($sql);
+    $stmt->bind_param("s", $userEmail);
+    $stmt->execute();
+
+    $result = $stmt->get_result();
+    if($result->num_rows > 0) {
+        $userIsExist = true;
+    } else {
+        $userIsExist = false;
+    }
+    return $userIsExist;
 }
 
 function formatData($originalUsers): array
 {
     $validUsers = array();
-
+    echo("Start processing CSV file\n");
     foreach ($originalUsers as $thisuser) {
         $validFlag = true;
 
@@ -118,24 +167,18 @@ function isTableExist(): bool
 
 function getCsv($file) {
     $users = null;
-    if(file_exists($file)) {
-        $readCsv = fopen($file, "r");
-        while (($row = fgetcsv($readCsv)) !== false) {
-            $users[] = $row;
-        }
-        fclose($readCsv);
-
-        array_shift($users);
-    } else {
-        echo("Please check the file is exist. $file");
+    $readCsv = fopen($file, "r");
+    while (($row = fgetcsv($readCsv)) !== false) {
+        $users[] = $row;
     }
+    fclose($readCsv);
+    array_shift($users);
     return $users;
-
 }
 
 function setParameters(): void
 {
-    global $argv, $username, $password, $mysqlHost, $fileLocation, $mysqlTableName, $writeToDatabase;
+    global $argv, $username, $password, $mysqlHost, $fileLocation, $mysqlTableName, $writeToDatabase, $flagUserNeedInputFile;
     $filteredArgument = array_filter($argv, fn($i) => $i > 0, ARRAY_FILTER_USE_KEY);
     foreach ($filteredArgument as $index => $arg) {
 
@@ -156,17 +199,16 @@ function setParameters(): void
 
                 case "--file":
                     $fileLocation = $filteredArgument[$index + 1];
+                    $flagUserNeedInputFile = true;
                     break;
 
                 case "--create_table":
                     //$mysqlTableName = $filteredArgument[$index + 1];
                     $mysqlTableName = "users";  //Force use users
-                    $writeToDatabase = true;
                     $allowInsertData = false;   //Only creat table not insert data.
                     break;
 
                 case "--dry_run":
-                    $mysqlTableName = $filteredArgument[$index + 1];
                     $writeToDatabase = false;
                     break;
 
