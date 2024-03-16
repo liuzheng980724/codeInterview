@@ -5,23 +5,65 @@ $help = array("The PHP script include these command line options (directives):",
 $username = null;
 $password = null;
 $mysqlHost = null;
+$dbname = "codeInterview";
 $mysqlTableName = null;
 $fileLocation = null;
 
-$writeToDatabase = false;
+$writeToDatabase = true;    //Default will allow
 
 $usersOriginal = null;
 
 setParameters();
 
-echo("Username: $username");
+/*echo("Username: $username");
 echo("Password: $password");
 echo("mysqlHost: $mysqlHost");
 echo("mysqlTable: $mysqlTableName");
-echo("File: $fileLocation");
+echo("File: $fileLocation");*/
 
 $usersOriginal = getCsv($fileLocation);
 print_r($usersOriginal);
+
+if($writeToDatabase) {
+    include 'includes/mysql_connect.inc';   //For mysql connect,
+
+    if(is_null($mysqlTableName)) {
+        echo("Use default table name: users");
+        $mysqlTableName = "users";
+    }
+
+    if(isTableExist()) {
+
+    } else {    //Creat the table if not exist.
+        include 'includes/mysql_connect.inc';   //For mysql connect,
+        $sql = "CREATE TABLE $mysqlTableName (email varchar(255) NOT NULL, name varchar(255), surname varchar(255), PRIMARY KEY (email))";
+        mysqli_query($db, $sql);
+    }
+
+} else {
+    echo "This is Dry_run. Will not write to DB.";
+}
+
+function isTableExist(): bool
+{
+    global $dbname, $mysqlTableName, $username, $password, $mysqlHost;  //Some parameters needed for mysql connect.
+    $tableExistFlag = null;
+
+    include 'includes/mysql_connect.inc';   //For mysql connect,
+
+    $sql = "SELECT count(*) AS CHECKTABLE FROM information_schema.TABLES WHERE (TABLE_SCHEMA = '$dbname') AND (TABLE_NAME = '$mysqlTableName')";    //SQL alias CHECKTABLE
+    $result = mysqli_query($db, $sql);
+
+    while($row = $result -> fetch_assoc()){
+        if($row["CHECKTABLE"] == 0) {
+            $tableExistFlag = false;
+        } else {
+            $tableExistFlag = true;
+        }
+    }
+
+    return $tableExistFlag;
+}
 
 function getCsv($file) {
     $users = null;
